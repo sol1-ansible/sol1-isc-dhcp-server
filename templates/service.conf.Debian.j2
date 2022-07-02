@@ -1,0 +1,5 @@
+# On what interfaces should the DHCP server (dhcpd) serve DHCP requests?
+#       Separate multiple interfaces with spaces, e.g. "eth0 eth1".
+{% if dhcp_use_ansible_managed %}# Ansible managed (Do not edit manually, changes will be over written) {% else %}# Ansible generated (No further changes will made while this line exists) {% endif %}
+
+INTERFACES="{% for subnet in dhcp_subnets %}{{ subnet.interface }} {% endfor %}"

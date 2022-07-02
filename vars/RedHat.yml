@@ -1,0 +1,7 @@
+---
+dhcp_server_package: dhcp
+dhcp_server_config: /etc/dhcp/dhcpd.conf
+dhcp_reservations_config: /etc/dhcp/dhcpd-reservations.conf
+dhcp_service: dhcpd
+dhcp_service_config: /etc/sysconfig/dhcpd
+apparmor_service: apparmor

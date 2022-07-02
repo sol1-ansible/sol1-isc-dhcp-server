@@ -1,0 +1,22 @@
+# Get a list of devices and their properties that have a private subnet range and aren't labeled net or wan
+- name: define filtered ethernet facts
+  set_fact:
+    my_interfaces: "{{ my_interfaces|default([]) + [hostvars[inventory_hostname]['ansible_' + item]] }}"
+  when:
+    - hostvars[inventory_hostname]['ansible_' + item]['device'] is defined
+    - hostvars[inventory_hostname]['ansible_' + item]['device'].not_icontains('net') and hostvars[inventory_hostname]['ansible_' + item]['device'].not_icontains('wan')
+    - hostvars[inventory_hostname]['ansible_' + item]['ipv4'] is defined
+    - hostvars[inventory_hostname]['ansible_' + item]['ipv4']['network'] is defined
+    - hostvars[inventory_hostname]['ansible_' + item]['ipv4']['network'].startswith('192.168.') or hostvars[inventory_hostname]['ansible_' + item]['ipv4']['network'].startswith('10.')
+  with_items:
+    - "{{ hostvars[inventory_hostname]['ansible_interfaces'] }}"
+
+- name: define dhcp specific facts
+  set_fact:
+    subnets: "{{ subnets|default([]) | union([{ 'base' : item['ipv4']['network'], 'netmask' : item['ipv4']['netmask'], 'interface' : item['device'], 'range_start' : item['ipv4']['network'] | regex_replace('0$','100'), 'range_end' : item['ipv4']['network'] | regex_replace('0$','250'), 'routers' : item['ipv4']['address'] }]) }}"
+  with_items:
+    - "{{ my_interfaces }}"
+
+- name: set dhcp_subnets
+  set_fact:
+    dhcp_subnets: "{{ subnets }}"

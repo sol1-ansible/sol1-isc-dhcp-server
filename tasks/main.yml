@@ -1,0 +1,101 @@
+---
+# Loading vars
+- name: Add the OS specific varibles
+  include_vars: "{{ ansible_os_family }}.yml"
+
+- name: debug pre
+  debug: var=dhcp_subnets
+
+- name: Set host specific varibles if not done manually
+  include: "dhcp_subnets.yml"
+  when:
+    - dhcp_subnets|length == 0
+
+- name: debug post
+  debug: var=dhcp_subnets
+
+# Install DHCP server
+- name: Install the required  packages in Redhat derivatives
+  yum: name={{ dhcp_server_package }} state=present
+  when: ansible_os_family == 'RedHat'
+
+- name: Install the required packages in Debian derivatives
+  apt: name={{ dhcp_server_package }} state=present #update_cache=yes
+  when: ansible_os_family == 'Debian'
+
+- name: Install the required packages in ArchLinux derivatives
+  pacman: name={{ dhcp_server_package }} state=present update_cache=yes
+  when: ansible_os_family == 'Archlinux'
+
+# Configuring AppArmor if requested
+- name: Check if the /etc/apparmor.d/local folder exists
+  stat: path=/etc/apparmor.d/local
+  when: configure_apparmor
+  register: apparmor_local
+
+- name: Configure AppArmor to allow dhcpd access to temporary ansible files for configuration checking
+  copy: src=apparmor/usr.sbin.dhcpd dest=/etc/apparmor.d/local/usr.sbin.dhcpd owner=root group=root mode=0644
+  when: configure_apparmor and apparmor_local.stat.exists
+  notify:
+    - restart apparmor
+
+- meta: flush_handlers
+
+# Set desired permissions on /etc/dhcp or use defaults
+- name: Set permissions on /etc/dhcp
+  file: path=/etc/dhcp state=directory mode={{ dhcp_dir_mode | default("0750") }}
+  when: "ansible_os_family == 'Debian' or ansible_os_family == 'RedHat'"
+
+# Generate reservation
+- name: make sure dhcpd-reservations.conf exists
+  copy: content="" dest={{ dhcp_reservations_config }} force=no owner=root group=root mode=0644
+
+- name: Generate dhcpd-reservations.conf
+  lineinfile:
+    path: "{{ dhcp_reservations_config }}"
+    line: "# {{ item.base }}/{{ item.netmask }} reservations"
+  with_items: "{{ dhcp_subnets }}"
+
+# Generate configuration
+- name: "Is {{ dhcp_server_config }} ansible managed?"
+  command: grep -Fq "Ansible generated" "{{ dhcp_server_config }}"
+  register: create_dhcpd
+  ignore_errors: yes
+  changed_when: no
+  check_mode: no
+
+- name: get ddns keys
+  include: "{{ item }}.yml"
+  loop: "{{ dhcp_ddns_keys }}"
+  loop_control:
+    loop_var: outer_item
+  when:
+    - item.source is defined
+
+- name: Generate dhcpd.conf
+  template: src=dhcpd.conf.j2 dest={{ dhcp_server_config }} owner=root group=root mode=0644 backup={{ backup_dhcpd_conf }}
+  when: create_dhcpd.rc == 0 or dhcp_use_ansible_managed == true
+  notify:
+    - restart dhcpd
+
+# Validate conf (can't do it on generation because dhcpd -t errors on non standard dir locations, maybe apparmor related)
+- name: Validate conf
+  shell: /usr/sbin/dhcpd -t -cf "{{ dhcp_server_config }}"
+
+# Generate service configuration
+- name: "Is {{ dhcp_service_config }} ansible managed?"
+  command: grep -Fq "Ansible generated" "{{ dhcp_service_config }}"
+  register: create_service
+  ignore_errors: yes
+  changed_when: no
+  check_mode: no
+
+- name: Generate DHCP service conf
+  template: src=service.conf.{{ ansible_os_family }}.j2 dest={{ dhcp_service_config }} owner=root group=root
+  when: (ansible_os_family == 'Debian' or (ansible_os_family == 'RedHat' and ansible_distribution_major_version < '7')) and create_service.rc != 0
+  notify:
+    - restart dhcpd
+
+# Enable DHCP server
+- name: Start the dhcp services DHCP
+  service: name={{ dhcp_service }} state=started enabled=yes

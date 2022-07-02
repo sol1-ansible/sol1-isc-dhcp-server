@@ -1,0 +1,12 @@
+---
+- name: get existing keys
+  command: pdnsutil list-tsig-keys
+  register: pdnsutil_list_tsig_keys
+
+- name: get the existing secret
+  set_fact:
+    dhcp_ddns_keys: "{{ dhcp_ddns_keys | default({}) | combine( {'value': item.split(' ')[-1]} ) }}"
+  with_items: "{{ pdnsutil_list_tsig_keys.stdout_lines }}"
+  when:
+    - pdnsutil_list_tsig_keys.stdout_lines is defined
+    - item is search("{{ outer_item.name }}. ")
