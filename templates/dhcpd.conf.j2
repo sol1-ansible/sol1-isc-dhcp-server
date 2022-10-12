@@ -101,6 +101,11 @@ subnet {{ s.base }} netmask {{ s.netmask }} {
 {% if s.range_start is defined %}
   range {{ s.range_start }} {{ s.range_end }};
 {% endif %}
+{% if s.ranges is defined %}
+{% for range in s.ranges %}
+  range {{ range.start }} {{ range.end }};
+{% endfor %}
+{% endif %}
 {% if s.boot_server is defined %}
   option boot-server "{{ s.boot_server }}";
 {% endif %}
@@ -199,6 +204,15 @@ shared-network {{ n.name }} {
   subnet {{ s.base }} netmask {{ s.netmask }} {
 {% if s.range_start is defined %}
     range {{ s.range_start }} {{ s.range_end }};
+{% endif %}
+{% if s.range2_start is defined %}
+    range {{ s.range2_start }} {{ s.range2_end }};
+{% endif %}
+{% if s.range3_start is defined %}
+    range {{ s.range3_start }} {{ s.range3_end }};
+{% endif %}
+{% if s.range4_start is defined %}
+    range {{ s.range4_start }} {{ s.range4_end }};
 {% endif %}
 {% if s.routers is defined %}
     option routers {{ s.routers }};
