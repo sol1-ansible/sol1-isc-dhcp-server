@@ -76,6 +76,13 @@ option {{ o }};
 {{ p }};
 {% endfor %}
 {% endif %}
+{% if dhcp_other_parameters is defined %}
+
+#DHCP other parameters
+{% for p in dhcp_other_parameters.split('\n') %}
+{{ p }}
+{% endfor %}
+{% endif %}
 {% if dhcp_classes is defined %}
 
 # Classes
